@@ -8259,10 +8259,7 @@ function HtmlViewer({
       targets={manualEditTargets}
       selectedTarget={selectedManualEditTarget}
       draft={manualEditDraft}
-      history={manualEditHistory}
       error={manualEditError}
-      canUndo={manualEditHistory.length > 0 || manualEditHasPendingStyleDraft}
-      canRedo={manualEditUndone.length > 0}
       busy={manualEditSaving}
       pageStylesEnabled={manualEditPageStylesEnabled}
       onSelectTarget={(target) => {
@@ -8280,22 +8277,14 @@ function HtmlViewer({
       onClearSelection={() => {
         void clearManualEditTargetSelection();
       }}
-      onExit={
-        selectedManualEditTarget || manualEditPageCardActive || manualEditHistory.length === 0
-          ? () => {
-              void dismissManualEditPanel();
-            }
-          : undefined
-      }
+      onExit={() => {
+        void dismissManualEditPanel();
+      }}
       onCancelDraft={() => {
         void cancelManualEditPanel();
       }}
       onSaveDraft={() => {
         void dismissManualEditPanel();
-      }}
-      onUndo={handleManualEditUndo}
-      onRedo={() => {
-        void redoManualEdit();
       }}
       floatingClassName={manualEditPageCardActive ? 'manual-edit-page-card' : undefined}
       floatingStyle={selectedManualEditTarget
@@ -8663,6 +8652,38 @@ function HtmlViewer({
               >
                 <RemixIcon name="edit-line" size={15} />
               </button>
+              {manualEditMode ? (
+                <>
+                  <button
+                    className="viewer-action viewer-action-icon od-tooltip"
+                    type="button"
+                    data-testid="manual-edit-undo"
+                    data-tooltip={t('manualEdit.undo')}
+                    data-tooltip-placement="bottom"
+                    title={t('manualEdit.undo')}
+                    aria-label={t('manualEdit.undo')}
+                    disabled={!(manualEditHistory.length > 0 || manualEditHasPendingStyleDraft) || manualEditSaving}
+                    onClick={handleManualEditUndo}
+                  >
+                    <RemixIcon name="arrow-go-back-line" size={15} />
+                  </button>
+                  <button
+                    className="viewer-action viewer-action-icon od-tooltip"
+                    type="button"
+                    data-testid="manual-edit-redo"
+                    data-tooltip={t('manualEdit.redo')}
+                    data-tooltip-placement="bottom"
+                    title={t('manualEdit.redo')}
+                    aria-label={t('manualEdit.redo')}
+                    disabled={manualEditUndone.length === 0 || manualEditSaving}
+                    onClick={() => {
+                      void redoManualEdit();
+                    }}
+                  >
+                    <RemixIcon name="arrow-go-forward-line" size={15} />
+                  </button>
+                </>
+              ) : null}
               <span className="viewer-toolbar-tool-divider" aria-hidden />
               <button
                 type="button"
