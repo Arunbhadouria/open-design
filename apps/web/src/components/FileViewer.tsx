@@ -4887,6 +4887,7 @@ function HtmlViewer({
   const [manualEditSaving, setManualEditSaving] = useState(false);
   const manualEditSavingRef = useRef(false);
   const manualEditPendingStyleRef = useRef<ManualEditPendingStyleSave | null>(null);
+  const [manualEditHasPendingStyleDraft, setManualEditHasPendingStyleDraft] = useState(false);
   const manualEditStyleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const manualEditPreviewVersionRef = useRef(0);
   const sourceRef = useRef<string | null>(source);
@@ -5840,6 +5841,7 @@ function HtmlViewer({
     setManualEditUndone([]);
     setManualEditError(null);
     manualEditPendingStyleRef.current = null;
+    setManualEditHasPendingStyleDraft(false);
     clearManualEditStyleTimer();
   }, [file.name]);
 
@@ -6092,6 +6094,7 @@ function HtmlViewer({
       manualEditTextCommitInFlightRef.current = null;
       setManualEditError(null);
       manualEditPendingStyleRef.current = null;
+      setManualEditHasPendingStyleDraft(false);
       if (manualEditStyleTimerRef.current) {
         clearTimeout(manualEditStyleTimerRef.current);
         manualEditStyleTimerRef.current = null;
@@ -6240,10 +6243,12 @@ function HtmlViewer({
     const nextPending = cancelManualEditPendingStyleSnapshot(manualEditPendingStyleRef.current, id, keys);
     if (!nextPending) {
       manualEditPendingStyleRef.current = null;
+      setManualEditHasPendingStyleDraft(false);
       clearManualEditStyleTimer();
       return;
     }
     manualEditPendingStyleRef.current = nextPending;
+    setManualEditHasPendingStyleDraft(true);
   }
 
   async function handleManualEditStyleChange(id: string, styles: Partial<ManualEditStyles>, label: string) {
@@ -6254,6 +6259,7 @@ function HtmlViewer({
       : styles;
     const pending: ManualEditPendingStyleSave = { id, styles: pendingStyles, label, version };
     manualEditPendingStyleRef.current = pending;
+    setManualEditHasPendingStyleDraft(true);
     setManualEditError(null);
     previewStyleToIframe(id, styles, version);
   }
@@ -6263,6 +6269,7 @@ function HtmlViewer({
     if (!pending) return true;
     if (manualEditSavingRef.current) return false;
     manualEditPendingStyleRef.current = null;
+    setManualEditHasPendingStyleDraft(false);
     return applyManualEdit({ id: pending.id, kind: 'set-style', styles: pending.styles }, pending.label);
   }
 
@@ -6271,6 +6278,7 @@ function HtmlViewer({
     if (!pending) return;
     clearManualEditStyleTimer();
     manualEditPendingStyleRef.current = null;
+    setManualEditHasPendingStyleDraft(false);
     const base = sourceRef.current ?? '';
     const target = pending.id === '__body__'
       ? null
@@ -6500,6 +6508,7 @@ function HtmlViewer({
       } else if (patch.kind === 'remove-element') {
         if (manualEditPendingStyleRef.current?.id === patch.id) {
           manualEditPendingStyleRef.current = null;
+          setManualEditHasPendingStyleDraft(false);
           clearManualEditStyleTimer();
         }
         selectedManualEditTargetIdRef.current = null;
@@ -6534,9 +6543,18 @@ function HtmlViewer({
     setManualEditHistory([]);
     setManualEditUndone([]);
     manualEditPendingStyleRef.current = null;
+    setManualEditHasPendingStyleDraft(false);
     setManualEditDraft((current) => ({ ...current, fullSource: persisted }));
     setManualEditError(message);
     return false;
+  }
+
+  function handleManualEditUndo() {
+    if (manualEditPendingStyleRef.current) {
+      cancelManualEditStyleDraft();
+      return;
+    }
+    void undoManualEdit();
   }
 
   async function undoManualEdit() {
@@ -8243,7 +8261,7 @@ function HtmlViewer({
       draft={manualEditDraft}
       history={manualEditHistory}
       error={manualEditError}
-      canUndo={manualEditHistory.length > 0}
+      canUndo={manualEditHistory.length > 0 || manualEditHasPendingStyleDraft}
       canRedo={manualEditUndone.length > 0}
       busy={manualEditSaving}
       pageStylesEnabled={manualEditPageStylesEnabled}
@@ -8275,9 +8293,7 @@ function HtmlViewer({
       onSaveDraft={() => {
         void dismissManualEditPanel();
       }}
-      onUndo={() => {
-        void undoManualEdit();
-      }}
+      onUndo={handleManualEditUndo}
       onRedo={() => {
         void redoManualEdit();
       }}
