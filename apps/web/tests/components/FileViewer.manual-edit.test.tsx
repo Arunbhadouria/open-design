@@ -379,6 +379,53 @@ describe('FileViewer manual edit regressions', () => {
     });
     expect(document.querySelector('.manual-edit-workspace')).not.toBeNull();
   });
+
+  it('page-styles card can still be dismissed after a save creates undo history', async () => {
+    const source = '<!doctype html><html><body><main data-od-id="hero">Hero</main></body></html>';
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+      if (url.includes('/api/projects/project-1/files') && init?.method === 'POST') {
+        return new Response(JSON.stringify({ file: htmlPreviewFile() }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(source, { status: 200, headers: { 'Content-Type': 'text/html' } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <FileViewer projectId="project-1" projectKind="prototype" file={htmlPreviewFile()}
+        liveHtml={source}
+      />,
+    );
+
+    // 1. Enter edit mode, select a target, save — creates one history entry.
+    clickManualTool('manual-edit-mode-toggle');
+    await selectManualEditTarget();
+    const baseSizeInput = await findStyleInput('Size');
+    fireEvent.change(baseSizeInput, { target: { value: '18' } });
+    fireEvent.click(screen.getByText('Save'));
+    await waitFor(() => {
+      expect(document.querySelector('.manual-edit-right')).toBeNull();
+    });
+
+    // 2. Open the page-styles card (history.length is now > 0).
+    await clickManualEditBackground();
+    expect(screen.getByText('PAGE')).toBeTruthy();
+
+    // 3. The X close button must still be present despite existing undo history.
+    const closeButton = screen.queryByLabelText('Close edit panel');
+    expect(closeButton).not.toBeNull();
+
+    // 4. Clicking X dismisses the page card but keeps the user in edit mode.
+    fireEvent.click(closeButton!);
+    await waitFor(() => {
+      expect(document.querySelector('.manual-edit-right')).toBeNull();
+    });
+    // Edit mode workspace is still mounted — the user did not exit edit mode.
+    expect(document.querySelector('.manual-edit-workspace')).not.toBeNull();
+  });
 });
 
 function heroTarget(): ManualEditTarget {

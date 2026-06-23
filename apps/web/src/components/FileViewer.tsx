@@ -8263,7 +8263,7 @@ function HtmlViewer({
         void clearManualEditTargetSelection();
       }}
       onExit={
-        selectedManualEditTarget || manualEditHistory.length === 0
+        selectedManualEditTarget || manualEditPageCardActive || manualEditHistory.length === 0
           ? () => {
               void dismissManualEditPanel();
             }
