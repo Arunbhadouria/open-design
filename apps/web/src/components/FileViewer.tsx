@@ -6651,6 +6651,53 @@ function HtmlViewer({
     win.postMessage({ type: 'od:slide', action }, '*');
   }
 
+  const latestUndo = useRef(undoManualEdit);
+  const latestRedo = useRef(redoManualEdit);
+  const latestCancel = useRef(cancelManualEditStyleDraft);
+  
+  latestUndo.current = undoManualEdit;
+  latestRedo.current = redoManualEdit;
+  latestCancel.current = cancelManualEditStyleDraft;
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      const isModifier = event.ctrlKey || event.metaKey;
+
+      if (isModifier && !event.shiftKey && event.key.toLowerCase() === 'z') {
+        event.preventDefault();
+        
+        // If the user is currently tweaking a color/layout property and
+        // hasn't clicked save yet, Ctrl+Z should undo the draft!
+        if (manualEditPendingStyleRef.current) {
+          latestCancel.current();
+          return;
+        }
+
+        void latestUndo.current();
+        return;
+      }
+
+      if (isModifier && ((event.shiftKey && event.key.toLowerCase() === 'z') || (!event.shiftKey && event.key.toLowerCase() === 'y'))) {
+        event.preventDefault();
+        void latestRedo.current();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   function syncCachedSlideStateToIframe(target: HTMLIFrameElement | null = iframeRef.current) {
     const active = htmlPreviewSlideState.get(previewStateKey)?.active;
     const win = target?.contentWindow;
@@ -8171,7 +8218,7 @@ function HtmlViewer({
   const manualEditPageCardActive =
     manualEditMode && !selectedManualEditTarget && manualEditPageStylesOpen;
   const manualEditPanelActive =
-    manualEditMode && (!!selectedManualEditTarget || manualEditPageCardActive);
+  manualEditMode && (!!selectedManualEditTarget || manualEditPageCardActive || manualEditHistory.length > 0);
   const manualEditPanel = manualEditPanelActive ? (
     <ManualEditPanel
       targets={manualEditTargets}
@@ -8198,9 +8245,13 @@ function HtmlViewer({
       onClearSelection={() => {
         void clearManualEditTargetSelection();
       }}
-      onExit={() => {
-        void dismissManualEditPanel();
-      }}
+      onExit={
+        selectedManualEditTarget || manualEditHistory.length === 0
+          ? () => {
+              void dismissManualEditPanel();
+            }
+          : undefined
+      }
       onCancelDraft={() => {
         void cancelManualEditPanel();
       }}
